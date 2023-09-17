@@ -5,6 +5,7 @@ from overcooked_ai_py.utils import mean_and_std_err
 from overcooked_ai_py.mdp.actions import Action
 from overcooked_ai_py.mdp.overcooked_mdp import OvercookedGridworld
 
+import csv
 
 DEFAULT_ENV_PARAMS = {
     "horizon": 400
@@ -95,8 +96,43 @@ class OvercookedEnv(object):
             info['episode'] = {
                 'ep_sparse_r': self.cumulative_sparse_rewards,
                 'ep_shaped_r': self.cumulative_shaped_rewards,
-                'ep_length': self.t
+                'ep_length': self.t,
+                #Archetype: data is tied to mdp as player states are reset each step.
+                'Archetype_one_objects_placed': self.mdp.archetype_one.num_of_objects_placed,
+                'Archetype_one_objects_boiled': self.mdp.archetype_one.num_of_objects_boiled,
+                'Archetype_one_soup_delivered': self.mdp.archetype_one.num_of_soup_delivered,
+                'Archetype_one_soup_plated': self.mdp.archetype_one.num_of_soup_plated,
+                
+                'Archetype_two_objects_placed': self.mdp.archetype_two.num_of_objects_placed,
+                'Archetype_two_objects_boiled': self.mdp.archetype_two.num_of_objects_boiled,
+                'Archetype_two_soup_delivered': self.mdp.archetype_two.num_of_soup_delivered,
+                'Archetype_two_soup_plated': self.mdp.archetype_two.num_of_soup_plated
             }
+            #print(info['episode'])
+            print("\nEpisode Info:")
+            for key, value in info['episode'].items():
+                if "ep_" in key:
+                    print(key + ':', value)
+
+            print("\nArchetype One:")
+            for key, value in info['episode'].items():
+                if "Archetype_one" in key:
+                    print(key + ':', value)
+
+            print("\nArchetype Two:")
+            for key, value in info['episode'].items():
+                if "Archetype_two" in key:
+                    print(key + ':', value)
+
+            #write to csv
+            data = [            
+                info['episode']['Archetype_one_objects_placed'],
+                info['episode']['Archetype_one_objects_boiled'],
+                info['episode']['Archetype_one_soup_delivered'],
+                info['episode']['Archetype_one_soup_plated'],
+            ]
+            self.write_to_csv(data)
+
         return (next_state, sparse_reward, done, info)
 
     def reset(self):
@@ -109,6 +145,13 @@ class OvercookedEnv(object):
         self.cumulative_sparse_rewards = 0
         self.cumulative_shaped_rewards = 0
         self.t = 0
+        self.mdp.archetype_one.clear_data()
+        self.mdp.archetype_two.clear_data()
+
+    def write_to_csv(self, data):
+        with open('archetype.csv', mode='a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(data)
 
     def is_done(self):
         """Whether the episode is over."""
