@@ -1,3 +1,4 @@
+tester (1).py
 import argparse
 import json
 from time import sleep
@@ -37,7 +38,7 @@ def generate_agent(env, policy_type, config, location):
 
     return gen_fixed(config, policy_type, location)
 
-
+#main loop
 def run_test(ego, env, num_episodes, render=False):
     env.set_ego_extractor(lambda obs: obs)
     rewards = []
@@ -62,6 +63,44 @@ def run_test(ego, env, num_episodes, render=False):
     print(f"Average Reward: {sum(rewards)/num_episodes}")
     print(f"Standard Deviation: {np.std(rewards)}")
 
+#new method
+#TODO: similarity calculation for selecting action
+def ensemble_test(ego, env, num_episodes, archetypes, render=False,):
+    env.set_ego_extractor(lambda obs: obs)
+    rewards = []
+    for game in range(num_episodes):
+        obs = env.reset()
+        done = False
+        reward = 0
+        if render:
+            env.render()
+        while not done:
+            # do a least squared check to check the archetype combination of the current player
+            # this will inform the probability of selecting actions from different models
+            # select an action based on this probability         
+            A_array = np.array(archetypes)
+            B_array = np.array(                
+                [env.mdp.archetype_one.num_of_objects_placed],
+                [env.mdp.archetype_one.num_of_objects_boiled],
+                [env.mdp.archetype_one.num_of_soup_delivered],
+                [env.mdp.archetype_one.num_of_soup_plated])
+            action_probabilities, residuals, rank, singular_values = np.linalg.lstsq(A_array, B_array, rcond=None)
+            #ego.models represent a list of models that an ensemble ego agent should have
+            chosen_model = np.random.choice(ego.models, p=action_probabilities)
+
+            action = chosen_model.get_action(obs, False)
+            obs, newreward, done, info, _ = env.step(action)
+            reward += newreward
+
+            if render:
+                env.render()
+                sleep(1/60)
+
+        rewards.append(reward)
+
+    env.close()
+    print(f"Average Reward: {sum(rewards)/num_episodes}")
+    print(f"Standard Deviation: {np.std(rewards)}")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
