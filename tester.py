@@ -1,4 +1,3 @@
-tester (1).py
 import argparse
 import json
 from time import sleep

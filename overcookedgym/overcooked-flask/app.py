@@ -22,7 +22,8 @@ def get_prediction(s, policy, layout_name, algo):
     s = torch.tensor(s).unsqueeze(0).float()
     # print(s.size())
     actions, states = policy.predict(observation=s)
-    # print(actions)
+    print("ACTIONS@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+    print(actions)
     return int(actions[0])
 
 
@@ -45,6 +46,8 @@ def process_state(state_dict, layout_name):
         return OvercookedState(**state_dict)
 
     state = state_from_dict(copy.deepcopy(state_dict))
+
+    print("STATE########################")
     print(state.to_dict())
 
     return MDP.featurize_state(state, MLP)
@@ -95,34 +98,60 @@ def predict():
         state_dict, player_id_dict, server_layout_name, algo, timestep = data_json["state"], data_json[
             "npc_index"], data_json["layout_name"], data_json["algo"], data_json["timestep"]
         player_id = int(player_id_dict)
+        print("%%%%%%%%%%%%%%%%%%%%%%%%%%%PLAYER ID: " + str(player_id_dict))
         layout_name = NAME_TRANSLATION[server_layout_name]
         s0, s1 = process_state(state_dict, layout_name)
+
+        print("SOOOOOOOOOOOOOOO " + str(s0))
+        print("S111111111111111 " + str(s1))
 
         # print(s0.to_dict())
         # print(s1.to_dict())
         print("---\n")
 
-        if ARGS.replay_traj:
-            if player_id == 0:
-                a = int(EGO_TRANSITIONS.acts[timestep][0]) if timestep < len(
-                    EGO_TRANSITIONS.acts) else 4
-            elif player_id == 1:
-                a = int(ALT_TRANSITIONS.acts[timestep][0]) if timestep < len(
-                    EGO_TRANSITIONS.acts) else 4
+        if (IS_ENSEMBLE):
+            if ARGS.replay_traj:
+                if player_id == 0:
+                    a = int(EGO_TRANSITIONS.acts[timestep][0]) if timestep < len(
+                        EGO_TRANSITIONS.acts) else 4
+                elif player_id == 1:
+                    a = int(ALT_TRANSITIONS.acts[timestep][0]) if timestep < len(
+                        EGO_TRANSITIONS.acts) else 4
+                else:
+                    assert(False)
             else:
-                assert(False)
+                if player_id == 0:
+                    s, policy = s0, POLICY_P0
+                elif player_id == 1:
+                    s, policy = s1, POLICY_P1
+                    #TODO x = np.linalg.lstsq(A_array, B_array, rcond=None)
+                    # A_array should be supplied, it is the archetype constitution
+                    # B_array is the archetypeal constitution of the player --> need to fetch this from mdp/env
+                else:
+                    assert(False)
+                a = get_prediction(s, policy, layout_name, algo)
         else:
-            if player_id == 0:
-                s, policy = s0, POLICY_P0
-            elif player_id == 1:
-                s, policy = s1, POLICY_P1
+            if ARGS.replay_traj:
+                if player_id == 0:
+                    a = int(EGO_TRANSITIONS.acts[timestep][0]) if timestep < len(
+                        EGO_TRANSITIONS.acts) else 4
+                elif player_id == 1:
+                    a = int(ALT_TRANSITIONS.acts[timestep][0]) if timestep < len(
+                        EGO_TRANSITIONS.acts) else 4
+                else:
+                    assert(False)
             else:
-                assert(False)
-            a = get_prediction(s, policy, layout_name, algo)
+                if player_id == 0:
+                    s, policy = s0, POLICY_P0
+                elif player_id == 1:
+                    s, policy = s1, POLICY_P1
+                else:
+                    assert(False)
+                a = get_prediction(s, policy, layout_name, algo)
 
         print(a)
         # print(algo)
-        print("sending action ", a)
+        print("sending action$$$$$$$$$$$$$$$$$$$$$$ ", a)
         return jsonify({'action': a})
 
 
@@ -172,7 +201,24 @@ if __name__ == '__main__':
                         required=True, help="layout name")
     parser.add_argument('--trajs_savepath', type=str,
                         help="path to save trajectories")
+    #ensemble arguements
+    parser.add_argument('--is_ensemble', type=bool,
+                        help="is alt an ensemble model?")
+    parser.add_argument('--ensemblepath_p1', type=str,
+                        help="path to load ensemble policy 1")
+    parser.add_argument('--ensemblepath_p2', type=str,
+                        help="path to load ensemble policy 2")
+    parser.add_argument('--ensemblepath_p3', type=str,
+                        help="path to load ensemble policy 3")
     ARGS = parser.parse_args()
+
+    IS_ENSEMBLE = ARGS.is_ensemble
+    if ARGS.ensemblepath_p1:
+        ENSEMBLE_P1 = PPO.load(ARGS.ensemblepath_p1)
+    if ARGS.ensemblepath_p2:
+        ENSEMBLE_P2 = PPO.load(ARGS.ensemblepath_p2)
+    if ARGS.ensemblepath_p3:
+        ENSEMBLE_P3 = PPO.load(ARGS.ensemblepath_p3)
 
     if ARGS.replay_traj:
         assert(not ARGS.modelpath_p0 and not ARGS.modelpath_p1)
